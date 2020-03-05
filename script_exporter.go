@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"flag"
@@ -11,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -32,40 +35,46 @@ type Config struct {
 }
 
 type Script struct {
-	Name    string `yaml:"name"`
-	Content string `yaml:"script"`
-	Timeout int64  `yaml:"timeout"`
+	Name         string `yaml:"name"`
+	Content      string `yaml:"script"`
+	Timeout      int64  `yaml:"timeout"`
+	ExposeStdout bool   `yaml:"exposeStdout"`
 }
 
 type Measurement struct {
 	Script   *Script
 	Success  int
 	Duration float64
+	Stdout   string
 }
 
-func runScript(script *Script) error {
+func runScript(script *Script) (*bytes.Buffer, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(script.Timeout)*time.Second)
 	defer cancel()
 
 	bashCmd := exec.CommandContext(ctx, *shell)
+	var out bytes.Buffer
+	if script.ExposeStdout {
+		bashCmd.Stdout = &out
+	}
 
 	bashIn, err := bashCmd.StdinPipe()
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err = bashCmd.Start(); err != nil {
-		return err
+		return nil, err
 	}
 
 	if _, err = bashIn.Write([]byte(script.Content)); err != nil {
-		return err
+		return nil, err
 	}
 
 	bashIn.Close()
 
-	return bashCmd.Wait()
+	return &out, bashCmd.Wait()
 }
 
 func runScripts(scripts []*Script) []*Measurement {
@@ -77,7 +86,7 @@ func runScripts(scripts []*Script) []*Measurement {
 		go func(script *Script) {
 			start := time.Now()
 			success := 0
-			err := runScript(script)
+			out, err := runScript(script)
 			duration := time.Since(start).Seconds()
 
 			if err == nil {
@@ -91,6 +100,7 @@ func runScripts(scripts []*Script) []*Measurement {
 				Script:   script,
 				Duration: duration,
 				Success:  success,
+				Stdout:   out.String(),
 			}
 		}(script)
 	}
@@ -144,6 +154,10 @@ func scriptRunHandler(w http.ResponseWriter, r *http.Request, config *Config) {
 	for _, measurement := range measurements {
 		fmt.Fprintf(w, "script_duration_seconds{script=\"%s\"} %f\n", measurement.Script.Name, measurement.Duration)
 		fmt.Fprintf(w, "script_success{script=\"%s\"} %d\n", measurement.Script.Name, measurement.Success)
+		sc := bufio.NewScanner(strings.NewReader(measurement.Stdout))
+		for sc.Scan() {
+			fmt.Fprintf(w, "%s\n", sc.Text())
+		}
 	}
 }
 
