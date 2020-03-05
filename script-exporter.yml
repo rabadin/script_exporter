@@ -1,6 +1,7 @@
 scripts:
   - name: 'success'
-    script: sleep 5
+    script: sleep 5 && echo "custom_measure{label=green} 0.4" && echo "custom_measure2 44"
+    exposeStdout: true
 
   - name: 'failure'
     script: sleep 2 && exit 1
