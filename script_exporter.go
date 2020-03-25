@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"regexp"
 	"strings"
 	"time"
 
@@ -20,6 +19,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/version"
+
+	"github.com/dlclark/regexp2"
 )
 
 var (
@@ -118,10 +119,10 @@ func scriptFilter(scripts []*Script, name, pattern string) (filteredScripts []*S
 		return
 	}
 
-	var patternRegexp *regexp.Regexp
+	var patternRegexp *regexp2.Regexp
 
 	if pattern != "" {
-		patternRegexp, err = regexp.Compile(pattern)
+		patternRegexp, err = regexp2.Compile(pattern, regexp2.RE2)
 
 		if err != nil {
 			return
@@ -129,8 +130,14 @@ func scriptFilter(scripts []*Script, name, pattern string) (filteredScripts []*S
 	}
 
 	for _, script := range scripts {
-		if script.Name == name || (pattern != "" && patternRegexp.MatchString(script.Name)) {
+		if (script.Name == name) {
 			filteredScripts = append(filteredScripts, script)
+		} else {
+			if (pattern != "") {
+				if isMatch, _ := patternRegexp.MatchString(script.Name); isMatch {
+					filteredScripts = append(filteredScripts, script)
+				}
+			}
 		}
 	}
 

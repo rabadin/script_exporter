@@ -3,6 +3,7 @@ module github.com/adhocteam/script_exporter
 go 1.19
 
 require (
+	github.com/dlclark/regexp2 v1.11.4
 	github.com/prometheus/client_golang v1.5.1
 	github.com/prometheus/common v0.9.1
 	gopkg.in/yaml.v2 v2.2.8
