@@ -6,9 +6,9 @@ import (
 
 var config = &Config{
 	Scripts: []*Script{
-		{"success", "exit 0", 1},
-		{"failure", "exit 1", 1},
-		{"timeout", "sleep 5", 2},
+		{"success", "exit 0", 1, false},
+		{"failure", "exit 1", 1, false},
+		{"timeout", "sleep 5", 2, false},
 	},
 }
 
